@@ -107,8 +107,18 @@ class Client
       return
     ossParams = 
       bucket : bucket
-      isAcl : true
-    @util.exec 'get', null, ossParams, cbf
+      acl : ''
+    headers = {}
+    method = 'get'
+    async.waterfall [
+      (cbf) =>
+        @util.exec method, '', ossParams, cbf
+      (body, cbf) ->
+        parser = new xml2js.Parser()
+        parser.parseString body, cbf
+      (data, cbf) ->
+        cbf null, data.AccessControlPolicy.AccessControlList[0].Grant[0]
+    ], cbf
     @
   ###*
    * putObject 上传object
@@ -236,8 +246,6 @@ class Client
             async.waterfall [
               (cbf) =>
                 @getObject bucket, obj, cbf
-              (data, cbf) ->
-                zlib.gzip data, cbf
               (data, cbf) =>
                 @putObject bucket, obj, {name : obj, data : data}, resContentHeader, cbf
             ], cbf
@@ -500,7 +508,7 @@ class Client
       url : GLOBAL.encodeURI "http://#{bucket}.#{@host}:#{@port}/?delete"
       headers : headers
       body : data
-    @util.request options, (err, res, body) ->
+    @util.request options, (err, body) ->
       if err
         cbf err
       else if body

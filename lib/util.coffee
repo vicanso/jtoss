@@ -5,6 +5,7 @@ crypto = require 'crypto'
 path = require 'path'
 mime = require 'mime'
 request = require 'request'
+zlib = require 'zlib'
 noop = ->
 
 
@@ -138,6 +139,8 @@ class UTIL
       params = params.sort()
     if params.length
       resource += "?#{params.join('&')}"
+    else if !_.isUndefined ossParams.acl
+      resource += '/?acl'
     resource
   ###*
    * getUrl 获取URL
@@ -145,14 +148,17 @@ class UTIL
    * @return {[type]}           [description]
   ###
   getUrl : (ossParams) ->
-    url = "http://#{@host}:#{@port}#{@getResource(ossParams)}"
-    params = @getOssParamQuery ossParams
-    if params.length
-      if !~url.indexOf '?'
-        url += '?'
-      else
-        url += '&'
-      url += params.join '&'
+    if !_.isUndefined ossParams.acl
+       url = "http://#{ossParams.bucket}.#{@host}:#{@port}/?acl"
+    else
+      url = "http://#{@host}:#{@port}#{@getResource(ossParams)}"
+      params = @getOssParamQuery ossParams
+      if params.length
+        if !~url.indexOf '?'
+          url += '?'
+        else
+          url += '&'
+        url += params.join '&'
     url
   ###*
    * getSignUrl 获取带签名的URL
@@ -238,7 +244,7 @@ class UTIL
       srcFile = null
     cbf = _.once cbf
     method = method.toUpperCase()
-    headers = @getHeaders method, metas, ossParams
+    headers = @getHeaders method, metas, ossParams, srcFile
     headers['Accept-Encoding'] = 'gzip'
     options =
       method : method
@@ -253,19 +259,44 @@ class UTIL
    	@request options, cbf
   request : (options, cbf) ->
     method = options.method
-    request options, (err, res, body) ->
-      if err
-        cbf err
-      else if res.statusCode != 200 && res.statusCode != 204
-        err = new Error body
-        err.code = res.statusCode
-        cbf err
-      else
-        # TODO gzip压缩解压
-        if method == 'HEAD'
-          cbf null, res.headers
+    async.waterfall [
+      (cbf) ->
+        if (method == 'PUT' || method == 'POST') && options.body && options.headers?['Content-Encoding'] == 'gzip'
+          zlib.gzip options.body, (err, data) ->
+            if err
+              cbf err
+            else
+              options.body = data
+              cbf null, options
         else
-          cbf null, body
+          cbf null, options
+      (options, cbf) ->
+        request options, cbf
+      (res, body, cbf) ->
+        if res.statusCode != 200 && res.statusCode != 204
+          err = new Error body
+          err.code = res.statusCode
+          cbf err
+        else
+          # TODO gzip压缩解压
+          if method == 'HEAD'
+            cbf null, res.headers
+          else
+            cbf null, body
+    ], cbf
+    # request options, (err, res, body) ->
+    #   if err
+    #     cbf err
+    #   else if res.statusCode != 200 && res.statusCode != 204
+    #     err = new Error body
+    #     err.code = res.statusCode
+    #     cbf err
+    #   else
+    #     # TODO gzip压缩解压
+    #     if method == 'HEAD'
+    #       cbf null, res.headers
+    #     else
+    #       cbf null, body
   validateObject : (name) ->
     err = new Error '长度必须在 1-1023 字节之间；不能以“/”或者“\”字符开头'
     if name.length < 1 || name.length > 1023

@@ -7,18 +7,17 @@
 
   OSSClient = require('../lib/client');
 
-  ossClient = new OSSClient('akuluq6no78cynryy8nfbl23', 'k6k0jKekWlZn0ciqKLZr+mwrozo=');
+  ossClient = new OSSClient('Z8pQTAkCNNDAOPjt', 'z014NFAjKNLpvP07TSACKjNDgQDsqS');
 
-  describe('Bucket functions: getBucketAcl, setBucketAcl', function() {
+  describe('Object functions: putObject, copyObject, updateObject updateObjectHeader deleteObject', function() {
     return it('should run without error', function(done) {
       var testBucket;
       testBucket = _.uniqueId('vicanso');
-      console.dir(testBucket);
       return async.waterfall([
         function(cbf) {
           return ossClient.createBucket(testBucket, cbf);
         }, function(data, cbf) {
-          return ossClient.getBucketAcl(testBucket, cbf);
+          return ossClient.putObject(testBucket, 'index.coffee', './index.coffee', cbf);
         }
       ], function(err) {
         if (err) {
