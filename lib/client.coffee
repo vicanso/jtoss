@@ -4,6 +4,7 @@ _ = require 'underscore'
 path = require 'path'
 async = require 'async'
 jtfs = require 'jtfs'
+zlib = require 'zlib'
 xml2js = require 'xml2js'
 noop = ->
 
@@ -137,19 +138,36 @@ class Client
     ossParams = 
       bucket : bucket
       object : object
-      # srcFile : srcFile
     if _.isFunction userMetas
       cbf = userMetas
     else if _.isObject userMetas
       ossParams.userMetas = userMetas
-    if _.isString srcFile
-      fs.readFile srcFile, (err, data) =>
-        if err
-          cbf err
+    async.waterfall [
+      (cbf) ->
+        if _.isString srcFile
+          fs.readFile srcFile, (err, data) ->
+            if err
+              cbf err
+            else
+              cbf null, {
+                name : srcFile
+                data : data
+              }
         else
-          @util.exec method, null, ossParams, {name : srcFile, data : data}, cbf
-    else
-      @util.exec method, null, ossParams, srcFile, cbf
+          cbf null, srcFile
+      (srcData, cbf) ->
+        if userMetas?['Content-Encoding'] == 'gzip'
+          zlib.gzip srcData.data, (err, gzipData) ->
+            if err
+              cbf err
+            else
+              srcData.data = gzipData
+              cbf null, srcData
+        else
+          cbf null, srcData
+      (srcData, cbf) =>
+        @util.exec method, null, ossParams, srcData, cbf
+    ], cbf
     @
   ###*
    * copyObject 复制object
@@ -192,32 +210,59 @@ class Client
     if arguments.length < 3
       cbf new Error 'the arguments is less than 3'
       return
-    async.parallel [
-      (cbf) =>
+    headers = null
+    updateFlag = false
+    updateCbf = cbf
+    async.auto {
+      getData : (cbf) ->
         if _.isString srcObj
-          fs.readFile srcObj, (err, data) =>
+          fs.readFile srcObj, (err, data) ->
             if err
-              cbf err
+              updateCbf err
             else
-              srcObj = {
+              srcObj = 
                 name : srcObj
                 data : data
-              }
-              @util.getETag srcObj.data, cbf
-        else
-          @util.getETag srcObj.data, cbf
-      (cbf) =>
+              cbf null
+      getHeaders : (cbf) =>
         @headObject bucket, dstObj, (err, result) ->
-          cbf null, result || {}
-    ], (err, result) =>
-      if err
-        cbf err
-      else
-        etag = '"' + result[0] + '"' 
-        if etag == result[1].etag
+          headers = result
           cbf null
-        else
-          @putObject bucket, dstObj, srcObj, cbf
+      checkData : [
+        'getData'
+        'getHeaders'
+        (cbf) ->
+          if headers?['Content-Encoding'] == 'gzip'
+            zlib.gzip srcObj.data, (err, data) ->
+              if err
+                updateCbf err
+              else
+                srcObj.zipData = data
+                cbf null
+          else
+            srcObj.zipData = srcObj.data
+            cbf null
+      ]
+      check : [
+        'checkData'
+        (cbf) =>
+          ossEtag = headers?['ETag']
+          @util.getETag srcObj.zipData, (err, etag) ->
+            if err
+              updateCbf err
+            else
+              updateFlag = etag != ossEtag
+              cbf null
+      ]
+      update : [
+        'check'
+        =>
+          if updateFlag
+            @putObject bucket, dstObj, srcObj, cbf
+          else
+            cbf null
+      ]
+    }
     @
   ###*
    * updateObjectHeader 更新Object的response header

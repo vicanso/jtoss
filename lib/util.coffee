@@ -49,7 +49,7 @@ class UTIL
           process.nextTick ->
             cbf null, obj
       (data, cbf) =>
-        cbf null, @md5(data).toUpperCase()
+        cbf null, '"' + @md5(data).toUpperCase() + '"'
     ], cbf
     @
   ###*
@@ -259,44 +259,65 @@ class UTIL
    	@request options, cbf
   request : (options, cbf) ->
     method = options.method
-    async.waterfall [
-      (cbf) ->
-        if (method == 'PUT' || method == 'POST') && options.body && options.headers?['Content-Encoding'] == 'gzip'
-          zlib.gzip options.body, (err, data) ->
-            if err
-              cbf err
-            else
-              options.body = data
-              cbf null, options
+    # console.dir options
+    # async.waterfall [
+    #   (cbf) ->
+    #     if (method == 'PUT' || method == 'POST') && options.body && options.headers?['Content-Encoding'] == 'gzip'
+    #       zlib.gzip options.body, (err, data) ->
+    #         if err
+    #           cbf err
+    #         else
+    #           options.body = data
+    #           cbf null, options
+    #     else
+    #       cbf null, options
+    #   (options, cbf) ->
+    #     request options, cbf
+    #   (res, body, cbf) ->
+    #     if res.statusCode != 200 && res.statusCode != 204
+    #       err = new Error body
+    #       err.code = res.statusCode
+    #       cbf err
+    #     else
+    #       # TODO gzip压缩解压
+    #       if method == 'HEAD'
+    #         cbf null, res.headers
+    #       else
+    #         cbf null, body
+    # ], cbf
+    request options, (err, res, body) =>
+      if err
+        cbf err
+      else if res.statusCode != 200 && res.statusCode != 204
+        err = new Error body
+        err.code = res.statusCode
+        cbf err
+      else
+        # TODO gzip压缩解压
+        headers = res.headers
+        @covertHeaders headers
+        if method == 'HEAD'
+          cbf null, headers
         else
-          cbf null, options
-      (options, cbf) ->
-        request options, cbf
-      (res, body, cbf) ->
-        if res.statusCode != 200 && res.statusCode != 204
-          err = new Error body
-          err.code = res.statusCode
-          cbf err
-        else
-          # TODO gzip压缩解压
-          if method == 'HEAD'
-            cbf null, res.headers
+          if body?.length && headers['Content-Encoding'] == 'gzip'
+            zlib.gunzip body, cbf
           else
             cbf null, body
-    ], cbf
-    # request options, (err, res, body) ->
-    #   if err
-    #     cbf err
-    #   else if res.statusCode != 200 && res.statusCode != 204
-    #     err = new Error body
-    #     err.code = res.statusCode
-    #     cbf err
-    #   else
-    #     # TODO gzip压缩解压
-    #     if method == 'HEAD'
-    #       cbf null, res.headers
-    #     else
-    #       cbf null, body
+  covertHeaders : (headers) ->
+    covertKeys = 
+      'cache-control' : 'Cache-Control'
+      'connection' : 'Connection'
+      'content-encoding' : 'Content-Encoding'
+      'content-length' : 'Content-Length'
+      'content-type' : 'Content-Type'
+      'date' : 'Date'
+      'etag' : 'ETag'
+      'last-modified' : 'Last-Modified'
+    _.each covertKeys, (value, key) ->
+      if headers[key]
+        headers[value] = headers[key]
+        delete headers[key]
+    headers
   validateObject : (name) ->
     err = new Error '长度必须在 1-1023 字节之间；不能以“/”或者“\”字符开头'
     if name.length < 1 || name.length > 1023
