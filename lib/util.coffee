@@ -245,7 +245,7 @@ class UTIL
     cbf = _.once cbf
     method = method.toUpperCase()
     headers = @getHeaders method, metas, ossParams, srcFile
-    headers['Accept-Encoding'] = 'gzip'
+    # headers['Accept-Encoding'] = 'gzip'
     options =
       method : method
       url : GLOBAL.encodeURI @getUrl ossParams
@@ -259,32 +259,6 @@ class UTIL
    	@request options, cbf
   request : (options, cbf) ->
     method = options.method
-    # console.dir options
-    # async.waterfall [
-    #   (cbf) ->
-    #     if (method == 'PUT' || method == 'POST') && options.body && options.headers?['Content-Encoding'] == 'gzip'
-    #       zlib.gzip options.body, (err, data) ->
-    #         if err
-    #           cbf err
-    #         else
-    #           options.body = data
-    #           cbf null, options
-    #     else
-    #       cbf null, options
-    #   (options, cbf) ->
-    #     request options, cbf
-    #   (res, body, cbf) ->
-    #     if res.statusCode != 200 && res.statusCode != 204
-    #       err = new Error body
-    #       err.code = res.statusCode
-    #       cbf err
-    #     else
-    #       # TODO gzip压缩解压
-    #       if method == 'HEAD'
-    #         cbf null, res.headers
-    #       else
-    #         cbf null, body
-    # ], cbf
     request options, (err, res, body) =>
       if err
         cbf err
@@ -293,7 +267,6 @@ class UTIL
         err.code = res.statusCode
         cbf err
       else
-        # TODO gzip压缩解压
         headers = res.headers
         @covertHeaders headers
         if method == 'HEAD'

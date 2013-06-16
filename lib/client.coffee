@@ -277,24 +277,24 @@ class Client
       cbf new Error 'the arguments is less than 3'
       return
     resContentHeader['x-oss-metadata-directive'] = 'REPLACE'
-    if !resContentHeader['Content-Encoding']
-      @copyObject bucket, obj, obj, resContentHeader, cbf
-    else
-      async.waterfall [
-        (cbf) =>
-          @headObject bucket, obj, cbf
-        (headers, cbf) =>
-          if headers['content-encoding']
-            @copyObject bucket, obj, obj, resContentHeader, cbf
-          else
-            # TODO
-            async.waterfall [
-              (cbf) =>
-                @getObject bucket, obj, cbf
-              (data, cbf) =>
-                @putObject bucket, obj, {name : obj, data : data}, resContentHeader, cbf
-            ], cbf
-      ], cbf
+    # if !resContentHeader['Content-Encoding']
+    #   @copyObject bucket, obj, obj, resContentHeader, cbf
+    # else
+    async.waterfall [
+      (cbf) =>
+        @headObject bucket, obj, cbf
+      (headers, cbf) =>
+        if headers['Content-Encoding'] == resContentHeader['Content-Encoding']
+          @copyObject bucket, obj, obj, resContentHeader, cbf
+        else
+          # TODO
+          async.waterfall [
+            (cbf) =>
+              @getObject bucket, obj, cbf
+            (data, cbf) =>
+              @putObject bucket, obj, {name : obj, data : data}, resContentHeader, cbf
+          ], cbf
+    ], cbf
     @
   ###*
    * deleteObject 删除object
@@ -372,7 +372,7 @@ class Client
     @util.exec method, null, ossParams, cbf
     @
   ###*
-   * listObjects 列出object（oss限制最多一次只能获取100个）
+   * listObjects 列出object（oss限制最多一次只能获取1000个）
    * @param  {String} bucket
    * @param  {Object} {optional} options [description]
    * @param  {Function} cbf 回调函数(err, result)
