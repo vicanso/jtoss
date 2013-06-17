@@ -118,7 +118,9 @@ class Client
         parser = new xml2js.Parser()
         parser.parseString body, cbf
       (data, cbf) ->
-        cbf null, data.AccessControlPolicy.AccessControlList[0].Grant[0]
+        cbf null, {
+          access : data.AccessControlPolicy.AccessControlList[0].Grant[0]
+        }
     ], cbf
     @
   ###*
