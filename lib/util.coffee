@@ -245,7 +245,7 @@ class UTIL
     cbf = _.once cbf
     method = method.toUpperCase()
     headers = @getHeaders method, metas, ossParams, srcFile
-    # headers['Accept-Encoding'] = 'gzip'
+    headers['Accept-Encoding'] = 'gzip'
     options =
       method : method
       url : GLOBAL.encodeURI @getUrl ossParams
@@ -272,10 +272,11 @@ class UTIL
         if method == 'HEAD'
           cbf null, headers
         else
+          cbf null, body?.toString()
           if body?.length && headers['Content-Encoding'] == 'gzip'
             zlib.gunzip body, cbf
           else
-            cbf null, body
+            cbf null, body?.toString()
   covertHeaders : (headers) ->
     covertKeys = 
       'cache-control' : 'Cache-Control'
@@ -283,6 +284,7 @@ class UTIL
       'content-encoding' : 'Content-Encoding'
       'content-length' : 'Content-Length'
       'content-type' : 'Content-Type'
+      'content-language' : 'Content-Language'
       'date' : 'Date'
       'etag' : 'ETag'
       'last-modified' : 'Last-Modified'

@@ -157,16 +157,16 @@ class Client
               }
         else
           cbf null, srcFile
-      (srcData, cbf) ->
-        if userMetas?['Content-Encoding'] == 'gzip'
-          zlib.gzip srcData.data, (err, gzipData) ->
-            if err
-              cbf err
-            else
-              srcData.data = gzipData
-              cbf null, srcData
-        else
-          cbf null, srcData
+      # (srcData, cbf) ->
+      #   if userMetas?['Content-Encoding'] == 'gzip'
+      #     zlib.gzip srcData.data, (err, gzipData) ->
+      #       if err
+      #         cbf err
+      #       else
+      #         srcData.data = gzipData
+      #         cbf null, srcData
+      #   else
+      #     cbf null, srcData
       (srcData, cbf) =>
         @util.exec method, null, ossParams, srcData, cbf
     ], cbf
@@ -198,7 +198,19 @@ class Client
           metas[key] = value
           delete userMetas[key]
     metas['x-oss-copy-source'] = "/#{bucket}/#{srcObj}"
-    @util.exec method, metas, ossParams, cbf
+    async.waterfall [
+      (cbf) =>
+        @util.exec method, metas, ossParams, cbf
+      (body, cbf) =>
+        parser = new xml2js.Parser()
+        parser.parseString body, cbf
+      (data, cbf) ->
+        cbf null, {
+          LastModified : data.CopyObjectResult.LastModified[0]
+          ETag : data.CopyObjectResult.ETag[0]
+        }
+    ], cbf
+
     @
   ###*
    * updateObject 更新object
@@ -230,26 +242,27 @@ class Client
         @headObject bucket, dstObj, (err, result) ->
           headers = result
           cbf null
-      checkData : [
+      # checkData : [
+      #   'getData'
+      #   'getHeaders'
+      #   (cbf) ->
+      #     if headers?['Content-Encoding'] == 'gzip'
+      #       zlib.gzip srcObj.data, (err, data) ->
+      #         if err
+      #           updateCbf err
+      #         else
+      #           srcObj.zipData = data
+      #           cbf null
+      #     else
+      #       srcObj.zipData = srcObj.data
+      #       cbf null
+      # ]
+      check : [
         'getData'
         'getHeaders'
-        (cbf) ->
-          if headers?['Content-Encoding'] == 'gzip'
-            zlib.gzip srcObj.data, (err, data) ->
-              if err
-                updateCbf err
-              else
-                srcObj.zipData = data
-                cbf null
-          else
-            srcObj.zipData = srcObj.data
-            cbf null
-      ]
-      check : [
-        'checkData'
         (cbf) =>
           ossEtag = headers?['ETag']
-          @util.getETag srcObj.zipData, (err, etag) ->
+          @util.getETag srcObj.data, (err, etag) ->
             if err
               updateCbf err
             else
