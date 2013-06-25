@@ -157,16 +157,16 @@ class Client
               }
         else
           cbf null, srcFile
-      # (srcData, cbf) ->
-      #   if userMetas?['Content-Encoding'] == 'gzip'
-      #     zlib.gzip srcData.data, (err, gzipData) ->
-      #       if err
-      #         cbf err
-      #       else
-      #         srcData.data = gzipData
-      #         cbf null, srcData
-      #   else
-      #     cbf null, srcData
+      (srcData, cbf) ->
+        if userMetas?['Content-Encoding'] == 'gzip'
+          zlib.gzip srcData.data, (err, gzipData) ->
+            if err
+              cbf err
+            else
+              srcData.data = gzipData
+              cbf null, srcData
+        else
+          cbf null, srcData
       (srcData, cbf) =>
         @util.exec method, null, ossParams, srcData, cbf
     ], cbf
@@ -242,24 +242,23 @@ class Client
         @headObject bucket, dstObj, (err, result) ->
           headers = result
           cbf null
-      # checkData : [
-      #   'getData'
-      #   'getHeaders'
-      #   (cbf) ->
-      #     if headers?['Content-Encoding'] == 'gzip'
-      #       zlib.gzip srcObj.data, (err, data) ->
-      #         if err
-      #           updateCbf err
-      #         else
-      #           srcObj.zipData = data
-      #           cbf null
-      #     else
-      #       srcObj.zipData = srcObj.data
-      #       cbf null
-      # ]
-      check : [
+      checkData : [
         'getData'
         'getHeaders'
+        (cbf) ->
+          if headers?['Content-Encoding'] == 'gzip'
+            zlib.gzip srcObj.data, (err, data) ->
+              if err
+                updateCbf err
+              else
+                srcObj.zipData = data
+                cbf null
+          else
+            srcObj.zipData = srcObj.data
+            cbf null
+      ]
+      check : [
+        'checkData'
         (cbf) =>
           ossEtag = headers?['ETag']
           @util.getETag srcObj.data, (err, etag) ->
@@ -291,7 +290,7 @@ class Client
     if arguments.length < 3
       cbf new Error 'the arguments is less than 3'
       return
-    resContentHeader['x-oss-metadata-directive'] = 'REPLACE'
+    resContentHeader['x-oss-metadata-directive'] = 'COPY'
     # if !resContentHeader['Content-Encoding']
     #   @copyObject bucket, obj, obj, resContentHeader, cbf
     # else
@@ -456,7 +455,10 @@ class Client
     , () ->
       next
     , (err) ->
-      cbf err, items
+      cbf err, {
+        total : items.length
+        items : items
+      }
   ###*
    * [createObjectGroup description]
    * @param  {[type]} bucket   [description]

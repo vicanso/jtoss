@@ -245,7 +245,7 @@ class UTIL
     cbf = _.once cbf
     method = method.toUpperCase()
     headers = @getHeaders method, metas, ossParams, srcFile
-    headers['Accept-Encoding'] = 'gzip'
+    # headers['Accept-Encoding'] = 'gzip'
     options =
       method : method
       url : GLOBAL.encodeURI @getUrl ossParams
@@ -272,7 +272,6 @@ class UTIL
         if method == 'HEAD'
           cbf null, headers
         else
-          cbf null, body?.toString()
           if body?.length && headers['Content-Encoding'] == 'gzip'
             zlib.gunzip body, cbf
           else
