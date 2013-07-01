@@ -6,11 +6,18 @@ async = require 'async'
 jtfs = require 'jtfs'
 zlib = require 'zlib'
 xml2js = require 'xml2js'
+OSS_MAX_RESULT_OBJECTS = 1000
 noop = ->
 
 class Client
   constructor : (@accessId, @accessKey, @host = 'oss.aliyuncs.com', @port = '8080', @timeout = 30000 ) ->
+    @defaultUserMetas = {}
     @util = new UTIL @accessId, @accessKey, @host, @port, @timeout
+  userMetas : (value) ->
+    if value
+      @defaultUserMetas = value
+    else
+      @defaultUserMetas
   ###*
    * createBucket 创建bucket
    * @param  {String} bucket 
@@ -137,13 +144,21 @@ class Client
       cbf new Error 'the arguments is less than 3'
       return
     method = 'put'
+
     ossParams = 
       bucket : bucket
       object : object
+      userMetas : {}
+    ext = path.extname object
+    defaultMetas = @defaultUserMetas[ext]
+
+    if defaultMetas
+      _.extend ossParams.userMetas, defaultMetas
     if _.isFunction userMetas
       cbf = userMetas
     else if _.isObject userMetas
-      ossParams.userMetas = userMetas
+      _.extend ossParams.userMetas, userMetas
+    userMetas = ossParams.userMetas
     async.waterfall [
       (cbf) ->
         if _.isString srcFile
@@ -291,9 +306,6 @@ class Client
       cbf new Error 'the arguments is less than 3'
       return
     resContentHeader['x-oss-metadata-directive'] = 'COPY'
-    # if !resContentHeader['Content-Encoding']
-    #   @copyObject bucket, obj, obj, resContentHeader, cbf
-    # else
     async.waterfall [
       (cbf) =>
         @headObject bucket, obj, cbf
@@ -399,6 +411,8 @@ class Client
     if _.isFunction options
       cbf = options
       options = null
+    options ?= {}
+    options['max-keys'] ?= OSS_MAX_RESULT_OBJECTS
     method = 'get'
     ossParams = 
       bucket : bucket
@@ -436,29 +450,55 @@ class Client
         }
     @
   ###*
-   * listAllObjects 获取所有的object（通过多次调用listObjects，获取所有的Objects）
+   * listObjectsByCustom 通过自定义一些条件来获取objects，如max, filter等
    * @param  {[type]} bucket  [description]
-   * @param  {[type]} options [description]
+   * @param  {[type]} {optional} options 与listObjects的一样，不过多了一个字段（max）可以标记最多拿多少个元素（可大于1000），option中还可以添加一个filter字段（筛选函数），用于筛选object
    * @param  {[type]} cbf     =             noop [description]
    * @return {[type]}         [description]
   ###
-  listAllObjects : (bucket, options, cbf = noop) ->
-    next = null
+  listObjectsByCustom : (bucket, options, cbf = noop) ->
+    if arguments.length < 1
+      cbf new Error 'the arguments is less than 1'
+      return
+    if _.isFunction options
+      cbf = options
+      options = null
+    options ?= {}
+    max = options.max || -1
+    delete options.max
+    filter = options.filter
+    delete options.filter
+    if filter
+      options['max-keys'] = 100
+    next = options.marker
     items = []
     async.doWhilst (cbf) =>
       options.marker = next
+      if !filter && max > 0 && max < OSS_MAX_RESULT_OBJECTS
+        options['max-keys'] = max
       @listObjects bucket, options, (err, result) ->
         if result
           next = result.next
-          items = items.concat result.items
+          tmpItems = result.items
+          if filter
+            tmpItems = _.filter tmpItems, filter
+          if ~max
+            max -= tmpItems?.length || 0
+            max = 0 if max < 0
+          items = items.concat tmpItems
         cbf err
     , () ->
-      next
+      if ~max
+        next && max > 0
+      else
+        next
     , (err) ->
       cbf err, {
+        next : next
         total : items.length
         items : items
       }
+    @
   ###*
    * [createObjectGroup description]
    * @param  {[type]} bucket   [description]
