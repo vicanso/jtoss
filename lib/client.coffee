@@ -7,7 +7,50 @@ jtfs = require 'jtfs'
 zlib = require 'zlib'
 xml2js = require 'xml2js'
 OSS_MAX_RESULT_OBJECTS = 1000
+KB_SIZE = 1024
+MB_SIZE = 1024 * 1024
+GB_SIZE = 1024 * 1024
 noop = ->
+
+
+getFilter = (searchType, keyword) ->
+  if !searchType || !keyword
+    return null
+  if searchType == 'keyword'
+    (objInfo) ->
+      ~objInfo.name.indexOf keyword
+  else
+    le = true
+    if keyword[0] == '>'
+      le = false
+      keyword = keyword.substring 1
+    else if keyword[0] == '<'
+      keyword = keyword.substring 1
+
+    if searchType == 'modified'
+      modified = new Date keyword
+      (objInfo) ->
+        lastModified = new Date objInfo.lastModified
+        if le
+          lastModified < modified
+        else
+          lastModified >= modified
+    else if searchType == 'size'
+      lastChar = keyword[keyword.length - 1]
+      size = GLOBAL.parseFloat keyword
+      if lastChar == 'K' || lastChar == 'k'
+        size *= KB_SIZE
+      else if lastChar == 'M' || lastChar == 'm'
+        size *= MB_SIZE
+      else if lastChar == 'G' || lastChar == 'g'
+        size *= GB_SIZE
+      (objInfo) ->
+        if le
+          objInfo.size < size
+        else
+          objInfo.size >= size
+    else
+      null
 
 class Client
   constructor : (@accessId, @accessKey, @host = 'oss.aliyuncs.com', @port = '8080', @timeout = 30000 ) ->
@@ -466,10 +509,13 @@ class Client
     options ?= {}
     max = options.max || -1
     delete options.max
-    filter = options.filter
-    delete options.filter
+    filter = getFilter options.searchType, options.keyword
+    delete options.searchType
+    delete options.keyword
+    # filter = options.filter
+    # delete options.filter
     if filter
-      options['max-keys'] = 100
+      options['max-keys'] = 1000
     next = options.marker
     items = []
     async.doWhilst (cbf) =>
@@ -596,13 +642,24 @@ class Client
   ###*
    * deleteObjects 删除objects
    * @param  {[type]} bucket [description]
-   * @param  {[type]} data   [description]
+   * @param  {[type]} objs   [description]
+   * @param  {[type]} quiet  [description]
    * @param  {[type]} cbf    [description]
    * @return {[type]}        [description]
   ###
-  deleteObjects : (bucket, data, cbf = noop) ->
+  deleteObjects : (bucket, objs, quiet, cbf = noop) ->
+    if _.isFunction quiet
+      cbf = quiet
+      quiet = true
+    xmlArr = ['<?xml version="1.0" encoding="UTF-8"?><Delete>']
+    if quiet
+      xmlArr.push '<Quiet>true</Quiet>'
+    _.each objs, (obj) ->
+      xmlArr.push "<Object><Key>#{obj}</Key></Object>"
+    xmlArr.push '</Delete>'
+
     headers = {}
-    data = new Buffer data
+    data = new Buffer xmlArr.join ''
     headers['Content-Length'] = data.length;
     headers['Content-Md5'] = @util.md5 data, 'base64'
     options =
