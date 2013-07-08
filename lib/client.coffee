@@ -53,7 +53,7 @@ getFilter = (searchType, keyword) ->
       null
 
 class Client
-  constructor : (@accessId, @accessKey, @host = 'oss.aliyuncs.com', @port = '8080', @timeout = 30000 ) ->
+  constructor : (@accessId, @accessKey, @host = 'oss.aliyuncs.com', @port = '80', @timeout = 30000 ) ->
     @defaultUserMetas = {}
     @util = new UTIL @accessId, @accessKey, @host, @port, @timeout
   userMetas : (value) ->

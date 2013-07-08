@@ -6,13 +6,12 @@ path = require 'path'
 mime = require 'mime'
 request = require 'request'
 zlib = require 'zlib'
+MB_SIZE = 1024 * 1024
 noop = ->
 
 
 class UTIL
-  constructor : (@accessId, @accessKey, @host = 'oss.aliyuncs.com', @port = '8080', @timeout = 30000 ) ->
-
-
+  constructor : (@accessId, @accessKey, @host = 'oss.aliyuncs.com', @port = '80', @timeout = 30000 ) ->
   ###*
    * md5 获取MD5值
    * @param  {String, Buffer} data 获取作MD5处理的数据
@@ -259,6 +258,8 @@ class UTIL
    	@request options, cbf
   request : (options, cbf) ->
     method = options.method
+    if options.body?.length > MB_SIZE
+      delete options.timeout
     request options, (err, res, body) =>
       if err
         cbf err
