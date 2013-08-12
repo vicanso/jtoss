@@ -284,7 +284,7 @@ class Client
    * @param  {[type]} cbf     [description]
    * @return {[type]}         [description]
   ###
-  putObjectWithData : (bucket, object, content, headers, params, cbf) ->
+  putObjectWithData : (bucket, object, content = '', headers, params, cbf) ->
     if _.isFunction headers
       cbf = headers
       headers = null
@@ -300,7 +300,7 @@ class Client
 
     if !headers['Content-Type']
       headers['Content-Type'] = mime.lookup(object) || DEFAULT_CONTENT_TYPE
-    if !Buffer.isBuffer content
+    if content && !Buffer.isBuffer content
       content = new Buffer content
     headers["Expect"] = "100-Continue"
     async.waterfall [
@@ -333,6 +333,31 @@ class Client
       params = null
     headers ?= {}
     @putObjectFromFd bucket, object, fileName, headers, params, cbf
+
+
+  putObjectFromFileList : (bucket, files, headers, params, cbf) ->
+    if _.isFunction headers
+      cbf = headers
+      headers = null
+    else if _.isFunction params
+      cbf = params
+      params = null
+    headers ?= {}
+    params ?= {}
+    progress = params.progress
+    delete params.progress
+    async.eachLimit files, 5, (file, cbf) =>
+      object = path.basename file
+      progress file, 'doing'
+      tmpParams = _.clone params
+      tmpHeaders = _.clone headers
+      @putObjectFromFile bucket, object, file, tmpHeaders, tmpParams, (err) ->
+        if err
+          progress file, 'error'
+        else
+          progress file, 'complete'
+        cbf null
+    , cbf
 
   ###*
    * putObjectFromFd 根据文件fd上传object
