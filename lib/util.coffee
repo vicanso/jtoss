@@ -8,7 +8,7 @@ request = require 'request'
 zlib = require 'zlib'
 glob = require 'glob'
 MB_SIZE = 1024 * 1024
-PART_SIZE = 10 * MB_SIZE
+PART_SIZE = 1 * MB_SIZE
 SELF_DEFINE_HEADER_PREFIX = "x-oss-"
 PROVIDER = "OSS"
 if PROVIDER == "AWS"

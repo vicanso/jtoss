@@ -345,17 +345,26 @@ class Client
     headers ?= {}
     params ?= {}
     progress = params.progress
-    delete params.progress
+    # delete params.progress
     async.eachLimit files, 5, (file, cbf) =>
       object = path.basename file
-      progress file, 'doing'
+      progress 'putObjectFromFileList', {
+        file : file
+        status : 'doing'
+      }
       tmpParams = _.clone params
       tmpHeaders = _.clone headers
       @putObjectFromFile bucket, object, file, tmpHeaders, tmpParams, (err) ->
         if err
-          progress file, 'error'
+          progress 'putObjectFromFileList', {
+            file : file
+            status : 'fail'
+          }
         else
-          progress file, 'complete'
+          progress 'putObjectFromFileList', {
+            file : file
+            status : 'complete'
+          }
         cbf null
     , cbf
 
@@ -446,14 +455,20 @@ class Client
    * @param  {[type]} cbf      [description]
    * @return {[type]}          [description]
   ###
-  updateObjectFromFile : (bucket, object, fileName, cbf) ->
-    headers = null
+  updateObjectFromFile : (bucket, object, fileName, headers, params = {}, cbf) ->
+    if _.isFunction headers
+      headers = null
+      cbf = headers
+    else if _.isFunction params
+      cbf = params
+      params = headers
+      headers = null
     async.waterfall [
       (cbf) =>
         @isModified bucket, object, fileName, cbf
       (modified, cbf) =>
         if modified
-          @putObjectFromFile bucket, object, fileName, headers, null, cbf
+          @putObjectFromFile bucket, object, fileName, headers, params, cbf
         else
           cbf null
     ], cbf
@@ -616,7 +631,8 @@ class Client
    * @param  {[type]} cbf      [description]
    * @return {[type]}          [description]
   ###
-  uploadLargeFile : (bucket, object, fileName, args...) ->
+  uploadLargeFile : (bucket, object, fileName, headers, params = {}, cbf) ->
+    console.dir 'large file:' + fileName
     _filetrPartMsgList = (partMsgList, resultParts) ->
       _.filter partMsgList, (partMsg) ->
         id = partMsg[0]
@@ -635,8 +651,10 @@ class Client
       eTag = '"' + partMsg[2] + '"'
       partNumber = partMsg[0]
       cloneParams = _.clone params
+      delete cloneParams.progress
       @uploadPartFromFileGivenPos bucket, object, fileName, offset, partSize, uploadId, partNumber, headers, cloneParams, (err, headers) ->
         if err
+          console.dir err
           if retry
             _uploadPart uploadId, partMsg, false, cbf
           else
@@ -648,53 +666,73 @@ class Client
         else
           cbf new Error 'upload part fail!!'
 
-    args = _.toArray arguments
+    # args = _.toArray arguments
     partMsgList = null
     uploadId = null
     uploadInfos = null
-    cbf = args.pop()
+    # cbf = args.pop()
 
-    if _.isFunction _.last args
-      progress = args.pop()
-    else
-      progress = ->
-    params = args.pop() || {}
-    headers = args.pop() || {}
-    # if _.isFunction headers
-    #   headers = null
-    # else if _.isFunction params
-    #   cbf = params
-    #   params = headers
-    #   headers = null
-    # if params
-    #   progress = params.progress
-    #   delete params.progress
-    # progress ?= ->
+    # if _.isFunction _.last args
+    #   progress = args.pop()
+    # else
+    #   progress = ->
+    # params = args.pop() || {}
+    # headers = args.pop() || {}
+    if _.isFunction headers
+      headers = null
+      cbf = headers
+    else if _.isFunction params
+      cbf = params
+      params = headers
+      headers = null
+    if params
+      progress = params.progress
+      # delete params.progress
+    progress ?= ->
 
     async.waterfall [
       (cbf) =>
         @util.splitLargeFile fileName, object, cbf
       (msgList, cbf) =>
+        console.dir msgList
         partMsgList = msgList
         @getUploadId bucket, object, cbf
       (id, cbf) =>
         uploadId = id
+        console.dir uploadId
         @listParts bucket, object, {uploadId : id}, cbf
       (partInfos, cbf) ->
         uploadInfos = partMsgList
         partMsgList = _filetrPartMsgList partMsgList, partInfos.parts
+        console.dir partMsgList
         total = partMsgList.length
         complete = 0
         async.eachLimit partMsgList, 5, (partMsg, cbf) =>
           _uploadPart uploadId, partMsg, (err) ->
             complete++
-            progress partMsg[0], complete, total
+            console.dir {
+              file : fileName
+              eTag : partMsg[0]
+              complete : complete
+              total : total
+            }
+            progress 'uploadLargeFile', {
+              file : fileName
+              eTag : partMsg[0]
+              complete : complete
+              total : total
+            }
+            # progress partMsg[0], complete, total
             cbf err
         , cbf
       (cbf) =>
         @listParts bucket, object, {uploadId : uploadId}, cbf
       (partInfos, cbf) =>
         xml = @util.createPartXml uploadInfos
+        progress 'putObjectFromFileList', {
+          file : fileName
+          status : 'complete'
+        }
         @completeUpload bucket, object, xml, {uploadId : uploadId}, cbf
     ], cbf
 
@@ -1098,25 +1136,37 @@ class Client
           else
             object = '/' + file.substring sourcePathLen
           @updateObjectFromFile bucket, object, file, (err) ->
-            done = true
+            status = 'complete'
             if err
-              done = false
+              status = 'fail'
               failFiles.push file
             complete++
-            progress file, done, complete, total
+            progress 'putObjectFromPath', {
+              file : file
+              status : status
+              complete : complete
+              total : total
+            }
+            # progress file, done, complete, total
             cbf null
         , (err) ->
           cbf err, failFiles
       (failFiles, cbf) =>
         async.eachLimit syncFilesInfo.largeFiles, 1, (file, cbf) ->
           object = targetPath + file.substring sourcePathLen
-          @updateLargeFileFromFile bucket, object, file, (err) ->
-            done = true
+          @updateLargeObjectFromFile bucket, object, file, (err) ->
+            status = 'complete'
             if err
-              done = false
+              status = 'fail'
               failFiles.push file
             complete++
-            progress file, done, complete, total
+            progress 'putObjectFromPath', {
+              file : file
+              status : status
+              complete : complete
+              total : total
+            }
+            # progress file, done, complete, total
             cbf null
         , (err) ->
           cbf err, failFiles
@@ -1207,14 +1257,22 @@ class Client
 
 
   ###*
-   * updateLargeFileFromFile 更新大文件
+   * updateLargeObjectFromFile 更新大文件
    * @param  {String} bucket   [description]
    * @param  {String} object   [description]
    * @param  {String} fileName [description]
    * @param  {[type]} cbf      [description]
    * @return {[type]}          [description]
   ###
-  updateLargeFileFromFile : (bucket, object, fileName, cbf) ->
+  updateLargeObjectFromFile : (bucket, object, fileName, headers, params = {}, cbf) ->
+    if _.isFunction headers
+      headers = null
+      cbf = headers
+    else if _.isFunction params
+      cbf = params
+      params = headers
+      headers = null
+
     async.waterfall [
       (cbf) =>
         @isModified bucket, object, fileName, cbf
@@ -1224,7 +1282,7 @@ class Client
             (cbf) =>
               @headObject bucket, object, cbf
             (headers, cbf) ->
-              @uploadLargeFile bucket, object, fileName, headers, null, cbf
+              @uploadLargeFile bucket, object, fileName, headers, params, cbf
           ], cbf
         else
           cbf null
@@ -1241,6 +1299,7 @@ class Client
     else
       headers['Host'] = "#{bucket}.#{@host}"
       resource = "/#{bucket}/"
+    delete params.progress
     resource = resource + object + @util.getResource params
     url = "http://#{headers['Host']}:#{@port}/#{object}"
     url = @util.appendParam url, params
