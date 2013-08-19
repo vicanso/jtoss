@@ -94,11 +94,12 @@ class Client
       if err
         cbf err
       else
-        cbf null, _.map result.ListAllMyBucketsResult.Buckets[0].Bucket, (item) ->
+        result = _.map result.ListAllMyBucketsResult.Buckets[0].Bucket, (item) ->
           {
             name : item.Name[0]
             createdAt : item.CreationDate[0]
           }
+        cbf null, result
   
   ###*
    * getBucketAcl 获取bucket的访问控制权限
