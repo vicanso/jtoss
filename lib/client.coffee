@@ -335,7 +335,15 @@ class Client
     headers ?= {}
     @putObjectFromFd bucket, object, fileName, headers, params, cbf
 
-
+  ###*
+   * putObjectFromFileList 从文件列表中上传object
+   * @param  {String} bucket  [description]
+   * @param  {Array} files   [description]
+   * @param  {Object} {optional} headers [description]
+   * @param  {Object} {optional}  [description]
+   * @param  {Function} cbf     [description]
+   * @return {[type]}         [description]
+  ###
   putObjectFromFileList : (bucket, files, headers, params, cbf) ->
     if _.isFunction headers
       cbf = headers
@@ -1174,6 +1182,15 @@ class Client
     ], cbf
 
   ###*
+   * clearAllObjectsInBucket 清除bucket中的所有object
+   * @param  {[type]} bucket [description]
+   * @return {[type]}        [description]
+  ###
+  clearAllObjectsInBucket : (bucket) ->
+
+
+
+  ###*
    * watch 监控目录的变化，对应更新oss的相应目录（在调用的时候，首先会将整个目录同步一次：根据ETag判断是否需要修改）
    * @param  {String} bucket     [description]
    * @param  {String} targetPath [description]
@@ -1318,7 +1335,6 @@ class Client
       timeout : @timeout * 1000
     @request options, @retryTimes, cbf
   request : (options, retryTimes, cbf) ->
-    # console.dir options
     method = options.method
     if options.body?.length > MB_SIZE
       delete options.timeout

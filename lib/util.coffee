@@ -36,7 +36,14 @@ safeGetElement = (name, obj) ->
 
 class UTIL
   constructor : ->
-  
+  ###*
+   * [getAssign description]
+   * @param  {[type]} accessKey [description]
+   * @param  {[type]} method    [description]
+   * @param  {[type]} headers   =             {} [description]
+   * @param  {[type]} resource  =             '/'  [description]
+   * @return {[type]}           [description]
+  ###
   getAssign : (accessKey, method, headers = {}, resource = '/') ->
     contentMd5 = safeGetElement 'Content-MD5', headers
     contentType = safeGetElement 'Content-Type', headers
@@ -54,6 +61,11 @@ class UTIL
     sha1 = crypto.createHmac 'sha1', accessKey
     sha1.update(@toBinary(strToSign)).digest('base64').trim()
 
+  ###*
+   * [getResource description]
+   * @param  {[type]} params =             {} [description]
+   * @return {[type]}        [description]
+  ###
   getResource : (params = {}) ->
     tmpHeaders = {}
     queryStr = ''
@@ -73,6 +85,13 @@ class UTIL
       resource += "?#{result.join('&')}"
     resource
 
+
+  ###*
+   * [appendParam description]
+   * @param  {[type]} url    [description]
+   * @param  {[type]} params [description]
+   * @return {[type]}        [description]
+  ###
   appendParam : (url, params) ->
     result = []
     _.each params, (value, key) =>
@@ -90,6 +109,11 @@ class UTIL
       url += "?#{result.join('&')}"
     url
 
+  ###*
+   * [createObjectGroupMsgXml description]
+   * @param  {[type]} partMsgList =             [] [description]
+   * @return {[type]}             [description]
+  ###
   createObjectGroupMsgXml : (partMsgList = []) ->
     xmlArr = ['<CreateFileGroup>']
     _.each partMsgList, (part) =>
@@ -105,6 +129,11 @@ class UTIL
     xmlArr.push '</CreateFileGroup>'
     xmlArr.join ''
 
+  ###*
+   * [createPartXml description]
+   * @param  {[type]} partMsgList =             [] [description]
+   * @return {[type]}             [description]
+  ###
   createPartXml : (partMsgList = []) ->
     xmlArr = ['<CompleteMultipartUpload>']
     _.each partMsgList, (part) =>
@@ -118,6 +147,13 @@ class UTIL
     xmlArr.push '</CompleteMultipartUpload>'
     xmlArr.join ''
 
+
+  ###*
+   * [createDeleteObjectMsgXml description]
+   * @param  {[type]}  objList =             []   [description]
+   * @param  {Boolean} isQuiet =             true [description]
+   * @return {[type]}          [description]
+  ###
   createDeleteObjectMsgXml : (objList = [], isQuiet = true) ->
     xmlArr = ['<?xml version="1.0" encoding="UTF-8"?><Delete>']
     if isQuiet
@@ -128,6 +164,16 @@ class UTIL
     xmlArr.push '</Delete>'
     xmlArr.join ''
 
+
+  ###*
+   * [splitLargeFile description]
+   * @param  {[type]} filePath     [description]
+   * @param  {[type]} objectPrefix =             ''        [description]
+   * @param  {[type]} maxPartNum   =             1000      [description]
+   * @param  {[type]} partSize     =             PART_SIZE [description]
+   * @param  {[type]} cbf          [description]
+   * @return {[type]}              [description]
+  ###
   splitLargeFile : (filePath, objectPrefix = '', maxPartNum = 1000, partSize = PART_SIZE, cbf) ->
     if _.isFunction objectPrefix
       cbf = objectPrefix
@@ -175,6 +221,16 @@ class UTIL
             realSize : realSize
           }
 
+    ###*
+     * [getPartMsg description]
+     * @param  {[type]} objectPrefix [description]
+     * @param  {[type]} filePath     [description]
+     * @param  {[type]} fd           [description]
+     * @param  {[type]} index        [description]
+     * @param  {[type]} partSize     [description]
+     * @param  {[type]} cbf          [description]
+     * @return {[type]}              [description]
+    ###
     getPartMsg = (objectPrefix, filePath, fd, index, partSize, cbf) ->
       md5 = crypto.createHash 'md5'
       partOrder = index + 1
@@ -197,6 +253,14 @@ class UTIL
           ]
       ], cbf
 
+
+    ###*
+     * [getPartsList description]
+     * @param  {[type]} filePath [description]
+     * @param  {[type]} partNum  [description]
+     * @param  {[type]} cbf      [description]
+     * @return {[type]}          [description]
+    ###
     getPartsList = (filePath, partNum, cbf) ->
       partsList = []
       async.waterfall [
@@ -236,7 +300,6 @@ class UTIL
     ], cbf
 
 
-  clearAllObjectsInBucket : (bucket) ->
 
   watch : (targetPath, limit, cbf) ->
     watch = require 'watch'
