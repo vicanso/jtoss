@@ -9,11 +9,12 @@ zlib = require 'zlib'
 xml2js = require 'xml2js'
 request = require 'request'
 mime = require 'mime'
+debug = require('debug') 'oss'
 OSS_MAX_RESULT_OBJECTS = 1000
 DEFAULT_CONTENT_TYPE = 'application/octet-stream'
 KB_SIZE = 1024
 MB_SIZE = 1024 * 1024
-LARGE_FILE_SIZE = 10 * MB_SIZE
+LARGE_FILE_SIZE = 1 * MB_SIZE
 GB_SIZE = 1024 * 1024
 PROVIDER = "OSS"
 DEFAULT_ACL = 'private'
@@ -123,6 +124,24 @@ class Client
         cbf err
       else
         cbf null, result.AccessControlPolicy.AccessControlList[0].Grant[0]
+
+  ###*
+   * setBucketAcl 修改bucket的访问控制权限
+   * @param {[type]} bucket [description]
+   * @param {[type]} acl    [description]
+   * @param {[type]} cbf    [description]
+  ###
+  setBucketAcl : (bucket, acl, cbf) ->
+    method = 'PUT'
+    object = ''
+    headers = 
+      'x-oss-acl' : acl
+    params = {}
+    body = ''
+    async.waterfall [
+      (cbf) =>
+        @exec method, bucket, object, headers, body, params, cbf
+    ], cbf
 
   ###*
    * listBucket 列出bucket的内容（默认最大只显示1000个object）
@@ -350,10 +369,11 @@ class Client
       headers = null
     else if _.isFunction params
       cbf = params
-      params = null
+      params = headers
+      headers = null
     headers ?= {}
     params ?= {}
-    progress = params.progress
+    progress = params.progress || ->
     # delete params.progress
     async.eachLimit files, 5, (file, cbf) =>
       object = path.basename file
@@ -431,10 +451,12 @@ class Client
       (stats, cbf) ->
         size = stats.size
         if offset > size
+          if _.isString fileName
+            fs.closeSync fd
           cbf new Error 'the offset is bigger than file size'
           return
         if partSize == -1 && size > LARGE_FILE_SIZE
-          if _.isString fileName
+          if !_.isString fileName
             fs.closeSync fd
           cbf uploadTooLargeErr
         else
@@ -466,8 +488,8 @@ class Client
   ###
   updateObjectFromFile : (bucket, object, fileName, headers, params = {}, cbf) ->
     if _.isFunction headers
-      headers = null
       cbf = headers
+      headers = null
     else if _.isFunction params
       cbf = params
       params = headers
@@ -641,7 +663,6 @@ class Client
    * @return {[type]}          [description]
   ###
   uploadLargeFile : (bucket, object, fileName, headers, params = {}, cbf) ->
-    console.dir 'large file:' + fileName
     _filetrPartMsgList = (partMsgList, resultParts) ->
       _.filter partMsgList, (partMsg) ->
         id = partMsg[0]
@@ -663,7 +684,6 @@ class Client
       delete cloneParams.progress
       @uploadPartFromFileGivenPos bucket, object, fileName, offset, partSize, uploadId, partNumber, headers, cloneParams, (err, headers) ->
         if err
-          console.dir err
           if retry
             _uploadPart uploadId, partMsg, false, cbf
           else
@@ -675,18 +695,13 @@ class Client
         else
           cbf new Error 'upload part fail!!'
 
-    # args = _.toArray arguments
     partMsgList = null
     uploadId = null
     uploadInfos = null
-    # cbf = args.pop()
 
-    # if _.isFunction _.last args
-    #   progress = args.pop()
-    # else
-    #   progress = ->
-    # params = args.pop() || {}
-    # headers = args.pop() || {}
+
+
+
     if _.isFunction headers
       headers = null
       cbf = headers
@@ -696,43 +711,39 @@ class Client
       headers = null
     if params
       progress = params.progress
-      # delete params.progress
     progress ?= ->
+
+
 
     async.waterfall [
       (cbf) =>
         @util.splitLargeFile fileName, object, cbf
       (msgList, cbf) =>
-        console.dir msgList
         partMsgList = msgList
         @getUploadId bucket, object, cbf
       (id, cbf) =>
         uploadId = id
-        console.dir uploadId
         @listParts bucket, object, {uploadId : id}, cbf
       (partInfos, cbf) ->
         uploadInfos = partMsgList
         partMsgList = _filetrPartMsgList partMsgList, partInfos.parts
-        console.dir partMsgList
         total = partMsgList.length
         complete = 0
-        async.eachLimit partMsgList, 5, (partMsg, cbf) =>
+        async.eachLimit partMsgList, 1, (partMsg, cbf) =>
           _uploadPart uploadId, partMsg, (err) ->
-            complete++
-            console.dir {
-              file : fileName
-              eTag : partMsg[0]
-              complete : complete
-              total : total
-            }
-            progress 'uploadLargeFile', {
-              file : fileName
-              eTag : partMsg[0]
-              complete : complete
-              total : total
-            }
+            if !err
+              complete++
+              debug "#{fileName} #{complete} #{total}"
+              progress 'uploadLargeFile', {
+                file : fileName
+                eTag : partMsg[2]
+                complete : complete
+                total : total
+              }
+            else
+              debug err
             # progress partMsg[0], complete, total
-            cbf err
+            cbf null
         , cbf
       (cbf) =>
         @listParts bucket, object, {uploadId : uploadId}, cbf
@@ -786,6 +797,8 @@ class Client
         cbf null, info
     ], cbf
 
+  updateObjectHeaders : (bucket, object, headers, cbf) ->
+    @copyObject bucket, object, bucket, object, headers, cbf
 
   ###*
    * copyObject 复制object
@@ -1267,7 +1280,6 @@ class Client
       (cbf) =>
         getDeleteObjects cbf
       (objectList, cbf) =>
-        console.dir objectList
         @deleteObjects bucket, objectList, cbf
       (cbf) =>
         @putObjectFromPath bucket, targetPath, sourcePath, progress, cbf

@@ -1,16 +1,16 @@
 async = require 'async'
 _ = require 'underscore'
 OSSClient = require '../lib/client'
-ossClient = new OSSClient 'Z8pQTAkCNNDAOPjt', 'z014NFAjKNLpvP07TSACKjNDgQDsqS'
+ossClient = new OSSClient '', ''
 
 
-describe 'Bucket functions: listBuckets, createBucket, deleteBucket', ->
+describe 'Bucket functions: getService, createBucket, deleteBucket', ->
   nextFunc = 'deleteBucket'
   testBucket = _.uniqueId 'vicanso'
   it 'should run without error', (done) ->
     async.waterfall [
       (cbf) ->
-        ossClient.listBuckets cbf
+        ossClient.getService cbf
       (buckets, cbf) ->
         result = _.find buckets, (bucket) ->
           bucket.name == testBucket
@@ -58,25 +58,25 @@ describe 'Bucket functions: getBucketAcl, setBucketAcl', ->
       else
         done()
 
-describe 'Object functions: putObject, copyObject, updateObject updateObjectHeader deleteObject', ->
+describe 'Object functions: putObject, copyObject, updateObject updateObjectHeaders deleteObject', ->
   it 'should run without error', (done) ->
     testBucket = _.uniqueId 'vicanso'
     async.waterfall [
       (cbf) ->
         ossClient.createBucket testBucket, cbf
       (data, cbf) ->
-        ossClient.putObject testBucket, 'index.coffee', './index.coffee', {'Content-Encoding' : 'gzip'}, cbf
+        ossClient.putObjectFromFile testBucket, 'index.coffee', './index.coffee', {'Content-Encoding' : 'gzip'}, cbf
       (data, cbf) ->
         ossClient.getObject testBucket, 'index.coffee', cbf
       (data, cbf) ->
         if data.length < 100
           cbf new Error 'put object fail!'
         else
-          ossClient.copyObject testBucket, 'copyindex.coffee', 'index.coffee', cbf
+          ossClient.copyObject testBucket, 'index.coffee', testBucket, 'copyindex.coffee', cbf
       (data, cbf) ->
-        ossClient.updateObject testBucket, 'index.coffee', './index.js', cbf
+        ossClient.updateObjectFromFile testBucket, 'index.coffee', './index.js', cbf
       (data, cbf) ->
-        ossClient.updateObjectHeader testBucket, 'index.coffee', {'Cache-Control' : 'public, maxage=300'}, cbf
+        ossClient.updateObjectHeaders testBucket, 'index.coffee', {'Cache-Control' : 'public, maxage=300'}, cbf
       (data, cbf) ->
         ossClient.deleteObject testBucket, 'index.coffee', cbf
       (data, cbf) ->
@@ -89,18 +89,18 @@ describe 'Object functions: putObject, copyObject, updateObject updateObjectHead
       else
         done()
 
-describe 'Object functions: listObjects, listAllObjects', ->
+describe 'Object functions: listBucket, listObjects', ->
   it 'should run without error', (done) ->
     testBucket = _.uniqueId 'vicanso'
     async.waterfall [
       (cbf) ->
         ossClient.createBucket testBucket, cbf
       (data, cbf) ->
-        ossClient.updateObject testBucket, 'index.coffee', './index.js', cbf
+        ossClient.updateObjectFromFile testBucket, 'index.coffee', './index.js', cbf
+      (data, cbf) ->
+        ossClient.listBucket testBucket, cbf
       (data, cbf) ->
         ossClient.listObjects testBucket, cbf
-      (data, cbf) ->
-        ossClient.listAllObjects testBucket, cbf
     ], (err) ->
       if err
         throw err

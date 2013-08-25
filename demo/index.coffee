@@ -1,6 +1,32 @@
 _ = require 'underscore'
 Client = require '../lib/client'
 client = new Client 'akuluq6no78cynryy8nfbl23', 'k6k0jKekWlZn0ciqKLZr+mwrozo='
+
+progress = ->
+  console.dir arguments
+
+files = [
+  '/Users/tree/Downloads/办业务_报价回购权限设置_关闭权限.psd'
+  '/Users/tree/Downloads/办业务_报价回购权限设置_开通权限01.psd'
+  '/Users/tree/Downloads/办业务_退市股票权限设置_开通权限02.psd'
+]
+
+client.putObjectFromFileList 'jenny', files, {progress : progress}, (err, data) ->
+  console.dir 'complete'
+  console.dir err
+  console.dir data
+
+
+app = require('express')()
+
+app.listen 10000
+
+
+# client.uploadLargeFile 'jenny', 'Firefox-latest.dmg', '/Users/tree/Downloads/Firefox-latest.dmg', {progress : progress}, (err, data) ->
+#   console.dir 'complete'
+#   console.dir err
+#   console.dir data
+
 # client.listAllMyBuckets (err, data) ->
 #   console.dir data
 # client.getBucketAcl 'jennytest', (err, data) ->
@@ -83,5 +109,5 @@ client = new Client 'akuluq6no78cynryy8nfbl23', 'k6k0jKekWlZn0ciqKLZr+mwrozo='
 # ,(err, info) ->
 #   console.dir arguments
 
-client.watch 'jenny', 'a', '/Users/Tree/tmp', ->
-  console.dir arguments
+# client.watch 'jenny', 'a', '/Users/Tree/tmp', ->
+#   console.dir arguments

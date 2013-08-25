@@ -7,16 +7,16 @@
 
   OSSClient = require('../lib/client');
 
-  ossClient = new OSSClient('Z8pQTAkCNNDAOPjt', 'z014NFAjKNLpvP07TSACKjNDgQDsqS');
+  ossClient = new OSSClient('', '');
 
-  describe('Bucket functions: listBuckets, createBucket, deleteBucket', function() {
+  describe('Bucket functions: getService, createBucket, deleteBucket', function() {
     var nextFunc, testBucket;
     nextFunc = 'deleteBucket';
     testBucket = _.uniqueId('vicanso');
     return it('should run without error', function(done) {
       return async.waterfall([
         function(cbf) {
-          return ossClient.listBuckets(cbf);
+          return ossClient.getService(cbf);
         }, function(buckets, cbf) {
           var result;
           result = _.find(buckets, function(bucket) {
@@ -81,7 +81,7 @@
     });
   });
 
-  describe('Object functions: putObject, copyObject, updateObject updateObjectHeader deleteObject', function() {
+  describe('Object functions: putObject, copyObject, updateObject updateObjectHeaders deleteObject', function() {
     return it('should run without error', function(done) {
       var testBucket;
       testBucket = _.uniqueId('vicanso');
@@ -89,7 +89,7 @@
         function(cbf) {
           return ossClient.createBucket(testBucket, cbf);
         }, function(data, cbf) {
-          return ossClient.putObject(testBucket, 'index.coffee', './index.coffee', {
+          return ossClient.putObjectFromFile(testBucket, 'index.coffee', './index.coffee', {
             'Content-Encoding': 'gzip'
           }, cbf);
         }, function(data, cbf) {
@@ -98,12 +98,12 @@
           if (data.length < 100) {
             return cbf(new Error('put object fail!'));
           } else {
-            return ossClient.copyObject(testBucket, 'copyindex.coffee', 'index.coffee', cbf);
+            return ossClient.copyObject(testBucket, 'index.coffee', testBucket, 'copyindex.coffee', cbf);
           }
         }, function(data, cbf) {
-          return ossClient.updateObject(testBucket, 'index.coffee', './index.js', cbf);
+          return ossClient.updateObjectFromFile(testBucket, 'index.coffee', './index.js', cbf);
         }, function(data, cbf) {
-          return ossClient.updateObjectHeader(testBucket, 'index.coffee', {
+          return ossClient.updateObjectHeaders(testBucket, 'index.coffee', {
             'Cache-Control': 'public, maxage=300'
           }, cbf);
         }, function(data, cbf) {
@@ -123,7 +123,7 @@
     });
   });
 
-  describe('Object functions: listObjects, listAllObjects', function() {
+  describe('Object functions: listBucket, listObjects', function() {
     return it('should run without error', function(done) {
       var testBucket;
       testBucket = _.uniqueId('vicanso');
@@ -131,11 +131,11 @@
         function(cbf) {
           return ossClient.createBucket(testBucket, cbf);
         }, function(data, cbf) {
-          return ossClient.updateObject(testBucket, 'index.coffee', './index.js', cbf);
+          return ossClient.updateObjectFromFile(testBucket, 'index.coffee', './index.js', cbf);
+        }, function(data, cbf) {
+          return ossClient.listBucket(testBucket, cbf);
         }, function(data, cbf) {
           return ossClient.listObjects(testBucket, cbf);
-        }, function(data, cbf) {
-          return ossClient.listAllObjects(testBucket, cbf);
         }
       ], function(err) {
         if (err) {
