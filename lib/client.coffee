@@ -221,25 +221,20 @@ class Client
   ###*
    * putBucket 创建bucket
    * @param  {String} bucket  [description]
-   * @param  {String} acl     [description]
-   * @param  {Object} {optional} headers [description]
+   * @param  {String} {optional} acl     [description]
    * @param  {Function} cbf     [description]
    * @return {[type]}         [description]
   ###
-  putBucket : (bucket, acl, headers, cbf) ->
+  putBucket : (bucket, acl, cbf) ->
     if _.isFunction acl
       cbf = acl
       acl = null
-    else if _.isFunction headers
-      cbf = headers
-      headers = null
-    headers ?= {}
+    headers = {}
     acl ?= DEFAULT_ACL
-    if acl
-      if @provider == 'AWS'
-        headers['x-amz-acl'] = acl
-      else
-        headers['x-oss-acl'] = acl
+    if @provider == 'AWS'
+      headers['x-amz-acl'] = acl
+    else
+      headers['x-oss-acl'] = acl
     method = 'PUT'
     object = ''
     body = ''
@@ -1083,14 +1078,10 @@ class Client
    * @param  {[type]} cbf     [description]
    * @return {[type]}         [description]
   ###
-  listObjectsByFilter : (bucket, headers, params = {}, cbf) ->
-    if _.isFunction headers
-      cbf = headers
-      headers = null
-    else if _.isFunction params
+  listObjectsByFilter : (bucket, params = {}, cbf) ->
+    if _.isFunction params
       cbf = params
-      params = headers
-      headers = null
+      params = null
     params ?= {}
     filter = params.filter
     delete params.filter
@@ -1348,8 +1339,9 @@ class Client
     @request options, @retryTimes, cbf
   request : (options, retryTimes, cbf) ->
     method = options.method
-    if options.body?.length > MB_SIZE
+    if options.body?.length > 20 *　KB_SIZE
       delete options.timeout
+    console.dir options
     request options, (err, res, body) =>
       if err
         if retryTimes > 0
@@ -1372,7 +1364,6 @@ class Client
             zlib.gunzip body, cbf
           else
             cbf null, body || headers
-
   _md5 : (fileName, cbf) ->
     md5 = crypto.createHash 'md5'
     reader = fs.createReadStream fileName
