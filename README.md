@@ -1,4 +1,4 @@
-# jtoss - node.js的aliyun oss客户端
+# jtoss - node.js的aliyun oss sdk
 
 ##API
 - [constructor] (#constructor)
